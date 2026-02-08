@@ -9,7 +9,7 @@ import dbus
 import pwnagotchi.plugins as plugins
 import pwnagotchi.ui.fonts as fonts
 from pwnagotchi.ui.components import LabeledValue
-from pwnagotchi.ui.view import BLACK
+from pwnagotchi.ui.view import WHITE
 from pwnagotchi.utils import StatusFile
 
 
@@ -583,7 +583,7 @@ class BTTether(plugins.Plugin):
 
     def on_ui_setup(self, ui):
         with ui._lock:
-            ui.add_element('bluetooth', LabeledValue(color=BLACK, label='BT', value='-', position=(ui.width() / 2 - 15, 0),
+            ui.add_element('bluetooth', LabeledValue(color=WHITE, label='BT', value='-', position=(ui.width() / 2 - 15, 0),
                            label_font=fonts.Bold, text_font=fonts.Medium))
 
 

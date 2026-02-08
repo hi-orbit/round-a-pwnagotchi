@@ -18,7 +18,7 @@ import pwnagotchi
 import pwnagotchi.plugins as plugins
 import pwnagotchi.ui.fonts as fonts
 from pwnagotchi.ui.components import LabeledValue
-from pwnagotchi.ui.view import BLACK
+from pwnagotchi.ui.view import WHITE
 
 
 # TODO: add enable switch in config.yml an cleanup all to the best place
@@ -69,7 +69,7 @@ class UPSLite(plugins.Plugin):
         self.ups = UPS()
 
     def on_ui_setup(self, ui):
-        ui.add_element('ups', LabeledValue(color=BLACK, label='UPS', value='0%/0V', position=(ui.width() / 2 + 15, 0),
+        ui.add_element('ups', LabeledValue(color=WHITE, label='UPS', value='0%/0V', position=(ui.width() / 2 + 15, 0),
                                            label_font=fonts.Bold, text_font=fonts.Medium))
 
     def on_unload(self, ui):

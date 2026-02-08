@@ -5,7 +5,7 @@ import os
 import pwnagotchi.plugins as plugins
 import pwnagotchi.ui.fonts as fonts
 from pwnagotchi.ui.components import LabeledValue
-from pwnagotchi.ui.view import BLACK
+from pwnagotchi.ui.view import WHITE
 
 
 class GPS(plugins.Plugin):
@@ -110,7 +110,7 @@ class GPS(plugins.Plugin):
         ui.add_element(
             "latitude",
             LabeledValue(
-                color=BLACK,
+                color=WHITE,
                 label="lat:",
                 value="-",
                 position=lat_pos,
@@ -122,7 +122,7 @@ class GPS(plugins.Plugin):
         ui.add_element(
             "longitude",
             LabeledValue(
-                color=BLACK,
+                color=WHITE,
                 label="long:",
                 value="-",
                 position=lon_pos,
@@ -134,7 +134,7 @@ class GPS(plugins.Plugin):
         ui.add_element(
             "altitude",
             LabeledValue(
-                color=BLACK,
+                color=WHITE,
                 label="alt:",
                 value="-",
                 position=alt_pos,

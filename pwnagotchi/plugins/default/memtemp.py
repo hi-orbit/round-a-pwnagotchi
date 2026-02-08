@@ -24,8 +24,8 @@
 # - Changed horizontal UI elements to Text
 # - Updated to version 1.0.2
 ###############################################################
-from pwnagotchi.ui.components import LabeledValue, Text
-from pwnagotchi.ui.view import BLACK
+from pwnagotchi.ui.components import LabeledValue, Text, CurvedText
+from pwnagotchi.ui.view import WHITE, CYAN
 import pwnagotchi.ui.fonts as fonts
 import pwnagotchi.plugins as plugins
 import pwnagotchi
@@ -88,97 +88,23 @@ class MemTemp(plugins.Plugin):
             # Set default value
             self.fields = self.DEFAULT_FIELDS
 
-        try:
-            # Configure line_spacing
-            line_spacing = int(self.options['linespacing'])
-        except Exception:
-            # Set default value
-            line_spacing = self.LINE_SPACING
-
-        try:
-            # Configure position
-            pos = self.options['position'].split(',')
-            pos = [int(x.strip()) for x in pos]
-            if self.options['orientation'] == "vertical":
-                v_pos = (pos[0], pos[1])
-            else:
-                h_pos = (pos[0], pos[1])
-        except Exception:
-            # Set default position based on screen type
-            if ui.is_waveshare_v2():
-                h_pos = (178, 84)
-                v_pos = (197, 74)
-            elif ui.is_waveshare_v1():
-                h_pos = (170, 80)
-                v_pos = (165, 61)
-            elif ui.is_waveshare144lcd():
-                h_pos = (53, 77)
-                v_pos = (73, 67)
-            elif ui.is_inky():
-                h_pos = (140, 68)
-                v_pos = (160, 54)
-            elif ui.is_waveshare27inch():
-                h_pos = (192, 138)
-                v_pos = (211, 122)
-            else:
-                h_pos = (155, 76)
-                v_pos = (175, 61)
-
-        if self.options['orientation'] == "vertical":
-            # Dynamically create the required LabeledValue objects
-            for idx, field in enumerate(self.fields):
-                v_pos_x = v_pos[0]
-                v_pos_y = v_pos[1] + ((len(self.fields) - 3) * -1 * line_spacing)
-                ui.add_element(
-                    f"memtemp_{field}",
-                    LabeledValue(
-                        color=BLACK,
-                        label=f"{self.pad_text(field)}:",
-                        value="-",
-                        position=(v_pos_x, v_pos_y + (idx * line_spacing)),
-                        label_font=fonts.Small,
-                        text_font=fonts.Small,
-                        label_spacing=self.LABEL_SPACING,
-                    )
-                )
-        else:
-            # default to horizontal
-            h_pos_x = h_pos[0] + ((len(self.fields) - 3) * -1 * 25)
-            h_pos_y = h_pos[1]
-            ui.add_element(
-                'memtemp_header',
-                Text(
-                    color=BLACK,
-                    value=" ".join([self.pad_text(x) for x in self.fields]),
-                    position=(h_pos_x, h_pos_y),
-                    font=fonts.Small,
-                )
+        # Single CurvedText on the right side, just inside uptime
+        ui.add_element(
+            'memtemp',
+            CurvedText(
+                value=" ".join([f"{x}:-" for x in self.fields]),
+                center=(120, 120),
+                radius=100,
+                start_angle=0,
+                font=fonts.Medium,
+                color=CYAN,
             )
-            ui.add_element(
-                'memtemp_data',
-                Text(
-                    color=BLACK,
-                    value=" ".join([self.pad_text("-") for x in self.fields]),
-                    position=(h_pos_x, h_pos_y + line_spacing),
-                    font=fonts.Small,
-                )
-            )
+        )
 
     def on_unload(self, ui):
         with ui._lock:
-            if self.options['orientation'] == "vertical":
-                for idx, field in enumerate(self.fields):
-                    ui.remove_element(f"memtemp_{field}")
-            else:
-                # default to horizontal
-                ui.remove_element('memtemp_header')
-                ui.remove_element('memtemp_data')
+            ui.remove_element('memtemp')
 
     def on_ui_update(self, ui):
-        if self.options['orientation'] == "vertical":
-            for idx, field in enumerate(self.fields):
-                ui.set(f"memtemp_{field}", getattr(self, self.ALLOWED_FIELDS[field])())
-        else:
-            # default to horizontal
-            data = " ".join([self.pad_text(getattr(self, self.ALLOWED_FIELDS[x])()) for x in self.fields])
-            ui.set('memtemp_data', data)
+        data = " ".join([f"{x}:{getattr(self, self.ALLOWED_FIELDS[x])()}" for x in self.fields])
+        ui.set('memtemp', data)

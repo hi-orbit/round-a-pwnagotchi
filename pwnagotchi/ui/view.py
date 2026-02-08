@@ -66,17 +66,17 @@ class View(object):
             'friend_name': Text(value=None, position=self._layout['friend_name'], font=fonts.BoldSmall,
                                 color=GREEN),
 
-            'name': CurvedText(value='pwnagotchi>', center=(120, 120), radius=107, start_angle=225,
+            'name': CurvedText(value='pwnagotchi>', center=(120, 120), radius=107, start_angle=270,
                               font=fonts.Bold, color=GREEN),
 
-            'status': CurvedText(value=self._voice.default(), center=(120, 120), radius=107, start_angle=90,
-                                font=fonts.Medium, color=WHITE),
+            'status': CurvedText(value=self._voice.default(), center=(120, 120), radius=85, start_angle=90,
+                                font=fonts.Medium, color=WHITE, flip=True),
 
             'shakes': CurvedText(value='PWND 0 (00)', center=(120, 120), radius=107, start_angle=135,
-                                font=fonts.Medium, color=CYAN),
+                                font=fonts.Medium, color=CYAN, flip=True),
 
             'mode': CurvedText(value='AUTO', center=(120, 120), radius=107, start_angle=45,
-                              font=fonts.Bold, color=CYAN),
+                              font=fonts.Bold, color=CYAN, flip=True),
         })
 
         if state:

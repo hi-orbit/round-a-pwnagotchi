@@ -10,9 +10,13 @@ from PIL import Image
 from textwrap import TextWrapper
 import math
 
+# Default color for all components — white for black-background IPS displays.
+# Upstream used 0 (black on white e-paper). Overridden per-component in view.py.
+DEFAULT_COLOR = (255, 255, 255)
+
 
 class Widget(object):
-    def __init__(self, xy, color=0):
+    def __init__(self, xy, color=DEFAULT_COLOR):
         self.xy = xy
         self.color = color
 
@@ -21,7 +25,7 @@ class Widget(object):
 
 
 class Bitmap(Widget):
-    def __init__(self, path, xy, color=0):
+    def __init__(self, path, xy, color=DEFAULT_COLOR):
         super().__init__(xy, color)
         self.image = Image.open(path)
 
@@ -30,7 +34,7 @@ class Bitmap(Widget):
 
 
 class Line(Widget):
-    def __init__(self, xy, color=0, width=1):
+    def __init__(self, xy, color=DEFAULT_COLOR, width=1):
         super().__init__(xy, color)
         self.width = width
 
@@ -55,7 +59,7 @@ class Text(Widget):
     instead of text, used for face PNG images on the round display.
     """
 
-    def __init__(self, value="", position=(0, 0), font=None, color=0, wrap=False, max_length=0, image=None):
+    def __init__(self, value="", position=(0, 0), font=None, color=DEFAULT_COLOR, wrap=False, max_length=0, image=None):
         super().__init__(position, color)
         self.value = value
         self.font = font
@@ -101,7 +105,7 @@ class Text(Widget):
 
 
 class LabeledValue(Widget):
-    def __init__(self, label, value="", position=(0, 0), label_font=None, text_font=None, color=0, label_spacing=5):
+    def __init__(self, label, value="", position=(0, 0), label_font=None, text_font=None, color=DEFAULT_COLOR, label_spacing=5):
         super().__init__(position, color)
         self.label = label
         self.value = value
@@ -119,12 +123,15 @@ class LabeledValue(Widget):
 
 
 class CurvedText(Widget):
-    def __init__(self, value="", center=(120, 120), radius=100, start_angle=0, font=None, color=0):
+    def __init__(self, value="", center=(120, 120), radius=100, start_angle=0, font=None, color=DEFAULT_COLOR, flip=False):
         """
         Draw text along a circular arc with rotated characters.
         center: (x, y) center of the circle
         radius: radius of the circle
         start_angle: starting angle in degrees (0 = right, 90 = bottom, 180 = left, 270 = top)
+        flip: if True, characters are flipped upright (tops point inward) and text runs
+              counter-clockwise — use for text on the bottom half of the circle so it
+              reads left-to-right when viewed from outside.
         """
         super().__init__(center, color)
         self.value = value
@@ -132,6 +139,7 @@ class CurvedText(Widget):
         self.radius = radius
         self.start_angle = start_angle
         self.font = font
+        self.flip = flip
 
     def draw(self, canvas, drawer):
         if not self.value or self.font is None:
@@ -151,7 +159,10 @@ class CurvedText(Widget):
             total_width = len(text) * 6
 
         angle_span = (total_width / self.radius) * (180 / math.pi)
-        current_angle = self.start_angle - (angle_span / 2)
+
+        # Direction: clockwise (normal) or counter-clockwise (flipped)
+        direction = -1 if self.flip else 1
+        current_angle = self.start_angle - direction * (angle_span / 2)
 
         for char in text:
             # Calculate character width
@@ -182,18 +193,20 @@ class CurvedText(Widget):
             # Draw character in center of temp image
             char_drawer.text((padding // 2, padding // 2), char, font=self.font, fill=self.color)
 
-            # Rotate character so bottom points toward center (perpendicular to radius)
-            rotation_angle = current_angle + 90
+            # Normal: bottom of char points toward center (+90°)
+            # Flipped: top of char points toward center (-90°), for bottom-half readability
+            rotation_angle = current_angle + (90 if not self.flip else -90)
             rotated = char_img.rotate(-rotation_angle, expand=True, resample=Image.BICUBIC)
 
             # Paste rotated character onto main canvas
             paste_x = int(x - rotated.width / 2)
             paste_y = int(y - rotated.height / 2)
 
-            # Ensure paste position is within canvas bounds
-            if paste_x >= 0 and paste_y >= 0:
+            # Paste if any part of the character is within the canvas
+            if (paste_x + rotated.width > 0 and paste_y + rotated.height > 0
+                    and paste_x < canvas.width and paste_y < canvas.height):
                 canvas.paste(rotated, (paste_x, paste_y), rotated)
 
-            # Move to next character position
+            # Move to next character position (counter-clockwise if flipped)
             char_angle_span = (char_width / self.radius) * (180 / math.pi)
-            current_angle += char_angle_span
+            current_angle += direction * char_angle_span
