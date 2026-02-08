@@ -102,7 +102,7 @@ def temperature(celsius=True):
     import os
     if os.getenv("DEV_MODE") == "1":
         return 35 if celsius else 95  # Return fake temperature in dev mode
-    
+
     try:
         with open('/sys/class/thermal/thermal_zone0/temp', 'rt') as fp:
             temp = int(fp.read().strip())
@@ -126,7 +126,7 @@ def shutdown():
     from pwnagotchi import fs
     for m in fs.mounts:
         m.sync()
- 
+
     os.system("sync")
     os.system("halt")
 

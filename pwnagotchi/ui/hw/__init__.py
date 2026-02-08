@@ -26,7 +26,7 @@ import logging
 def display_for(config):
     # Check for environment-based display backend override (for development)
     display_backend = os.getenv("DISPLAY_BACKEND", "").lower()
-    
+
     if display_backend == "pygame":
         logging.info("Using Pygame display backend (development mode)")
         try:
@@ -35,7 +35,7 @@ def display_for(config):
         except ImportError as e:
             logging.error(f"Could not load Pygame display: {e}")
             logging.error("Make sure pygame is installed: pip install pygame")
-    
+
     elif display_backend == "spi":
         logging.info("Using SPI round display backend")
         try:
@@ -43,7 +43,7 @@ def display_for(config):
             return SPIDisplay(config)
         except ImportError as e:
             logging.error(f"Could not load SPI display: {e}")
-    
+
     # config has been normalized already in utils.load_config
     if config['ui']['display']['type'] == 'inky':
         return Inky(config)

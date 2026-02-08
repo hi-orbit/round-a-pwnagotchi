@@ -96,7 +96,7 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
         if os.getenv("DEV_MODE") == "1":
             logging.warning("DEV_MODE: Skipping monitor mode setup (no WiFi hardware)")
             return
-            
+
         mon_iface = self._config['main']['iface']
         mon_start_cmd = self._config['main']['mon_start_cmd']
         restart = not self._config['main']['no_restart']
@@ -139,7 +139,7 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
         if os.getenv("DEV_MODE") == "1":
             logging.warning("DEV_MODE: Skipping bettercap wait (bettercap not available)")
             return
-        
+
         while True:
             try:
                 _s = self.session()

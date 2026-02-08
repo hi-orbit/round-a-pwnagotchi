@@ -26,13 +26,13 @@ def create_face(name, eyes, mouth, size=80):
     # Create image with transparency
     img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    
+
     # Draw black oval background with slight transparency
     margin = size // 16
-    draw.ellipse([margin, margin, size-margin, size-margin], 
+    draw.ellipse([margin, margin, size-margin, size-margin],
                  fill=(0, 0, 0, 220),
                  outline=(50, 50, 50, 255))
-    
+
     # Draw eyes (glowing blue/cyan)
     eye_color = (0, 180, 255, 255)
     for eye in eyes:
@@ -40,9 +40,9 @@ def create_face(name, eyes, mouth, size=80):
         # Add white highlight
         highlight_x = eye[0] + (eye[2] - eye[0]) // 3
         highlight_y = eye[1] + (eye[3] - eye[1]) // 3
-        draw.ellipse([highlight_x, highlight_y, highlight_x+3, highlight_y+3], 
+        draw.ellipse([highlight_x, highlight_y, highlight_x+3, highlight_y+3],
                     fill=(255, 255, 255, 200))
-    
+
     # Draw mouth
     mouth_color = (0, 180, 255, 255)
     for m in mouth:
@@ -55,21 +55,21 @@ def create_face(name, eyes, mouth, size=80):
         else:
             # Neutral - draw line
             draw.line([m[0], m[1], m[2], m[3]], fill=mouth_color, width=2)
-    
+
     return img
 
 def generate_all_faces(output_dir='.'):
     """Generate all face images."""
     os.makedirs(output_dir, exist_ok=True)
-    
+
     print(f"Generating face images in {output_dir}/...")
-    
+
     for name, (eyes, mouth, desc) in FACES.items():
         img = create_face(name, eyes, mouth)
         output_path = os.path.join(output_dir, f'{name}.png')
         img.save(output_path)
         print(f"  ✓ Created {name}.png - {desc}")
-    
+
     print(f"\nGenerated {len(FACES)} face images!")
     print("\nYou can customize these images with your own designs.")
     print("Images should be 80x80 PNG with transparent backgrounds.")

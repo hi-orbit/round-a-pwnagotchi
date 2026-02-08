@@ -61,7 +61,7 @@ def do_auto_mode(agent):
         logging.warning("DEV_MODE: Running in display-only mode (no WiFi operations)")
         # Give the UI a moment to initialize
         time.sleep(2)
-        
+
         while True:
             try:
                 logging.info("DEV: Setting bored state with face...")
@@ -71,14 +71,14 @@ def do_auto_mode(agent):
                 agent.view().set('face', faces.BORED)
                 agent.view().update(force=True)
                 time.sleep(5)
-                
+
                 logging.info("DEV: Setting excited state with face...")
                 agent.set_excited()
                 agent.view().set('status', 'Excited!')
                 agent.view().set('face', faces.EXCITED)
                 agent.view().update(force=True)
                 time.sleep(5)
-                
+
                 logging.info("DEV: Setting sad state with face...")
                 agent.set_sad()
                 agent.view().set('status', 'Sad...')
@@ -189,13 +189,13 @@ def main():
     from pwnagotchi import plugins
 
     pwnagotchi.config = config
-    
+
     # Setup filesystem - skip if in dev mode
     if os.getenv('DEV_MODE') != '1':
         fs.setup_mounts(config)
     else:
         logging.info("DEV_MODE: Skipping filesystem setup")
-    
+
     log.setup_logging(args, config)
     fonts.init(config)
 

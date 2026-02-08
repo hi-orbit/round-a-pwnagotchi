@@ -13,16 +13,16 @@ class SPIDisplay(DisplayImpl):
     SPI display driver for GC9A01 round LCD display.
     This interfaces with the physical hardware on the Raspberry Pi.
     """
-    
+
     def __init__(self, config):
         super(SPIDisplay, self).__init__(config, 'spi_round')
         self.width = 240
         self.height = 240
         self.spi_speed_hz = 60000000
         self.device = None
-        
+
         logging.info(f"Initializing SPI round display ({self.width}x{self.height})")
-    
+
     def layout(self):
         """Set up the layout for the round display."""
         fonts.setup(10, 9, 10, 25, 25, 9)
@@ -45,7 +45,7 @@ class SPIDisplay(DisplayImpl):
             'max': 20
         }
         return self._layout
-    
+
     def initialize(self):
         """
         Initialize the SPI display hardware.
@@ -56,44 +56,44 @@ class SPIDisplay(DisplayImpl):
             # TODO: Add actual GC9A01 driver initialization
             # from round_display import GC9A01
             # self.device = GC9A01(spi_speed_hz=self.spi_speed_hz)
-            
+
             logging.info("SPI round display initialized")
             logging.warning("GC9A01 driver not yet implemented - placeholder active")
-            
+
         except ImportError as e:
             logging.error(f"Could not import SPI display driver: {e}")
             logging.error("Make sure you're running on a Raspberry Pi with the display library installed")
         except Exception as e:
             logging.error(f"Error initializing SPI display: {e}")
-    
+
     def render(self, canvas):
         """
         Render a PIL Image to the physical display.
-        
+
         Args:
             canvas: PIL Image object to render
         """
         if canvas is None:
             return
-        
+
         try:
             # Convert to RGB if needed
             if canvas.mode != 'RGB':
                 canvas = canvas.convert('RGB')
-            
+
             # Resize if needed
             if canvas.size != (self.width, self.height):
                 canvas = canvas.resize((self.width, self.height), Image.LANCZOS)
-            
+
             # TODO: Send to actual hardware
             # if self.device:
             #     self.device.display(canvas)
-            
+
             logging.debug("Rendered frame to SPI display")
-            
+
         except Exception as e:
             logging.error(f"Error rendering to SPI display: {e}")
-    
+
     def clear(self):
         """Clear the display."""
         try:
@@ -102,7 +102,7 @@ class SPIDisplay(DisplayImpl):
             self.render(blank)
         except Exception as e:
             logging.error(f"Error clearing SPI display: {e}")
-    
+
     def image(self):
         """
         Get the current display content.

@@ -74,7 +74,7 @@
         function updateDisplay() {
             const img = document.getElementById('display-image');
             const timestamp = new Date().getTime();
-            
+
             // Create a new image to test if it's different
             const testImg = new Image();
             testImg.onload = function() {
@@ -82,7 +82,7 @@
                 document.getElementById('update-count').textContent = updateCount;
                 document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
                 document.getElementById('error-msg').style.display = 'none';
-                
+
                 // Update the display image
                 img.src = '/display?t=' + timestamp;
             };
@@ -97,7 +97,7 @@
             fps = newFps;
             intervalMs = 1000 / fps;
             document.getElementById('fps').textContent = fps.toFixed(1);
-            
+
             // Restart the interval with new rate
             clearInterval(window.updateInterval);
             window.updateInterval = setInterval(updateDisplay, intervalMs);

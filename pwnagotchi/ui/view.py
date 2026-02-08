@@ -50,13 +50,13 @@ class View(object):
         self._width = self._layout['width']
         self._height = self._layout['height']
         self._state = State(state={
-            'channel': CurvedText(value='CH 00', center=(120, 120), radius=110, start_angle=180, 
+            'channel': CurvedText(value='CH 00', center=(120, 120), radius=110, start_angle=180,
                                  font=fonts.Medium, color=CYAN),
-            
-            'aps': CurvedText(value='APS 0 (00)', center=(120, 120), radius=112, start_angle=270, 
+
+            'aps': CurvedText(value='APS 0 (00)', center=(120, 120), radius=112, start_angle=270,
                              font=fonts.Medium, color=CYAN),
-            
-            'uptime': CurvedText(value='UP 00:00:00', center=(120, 120), radius=110, start_angle=0, 
+
+            'uptime': CurvedText(value='UP 00:00:00', center=(120, 120), radius=110, start_angle=0,
                                 font=fonts.Medium, color=CYAN),
 
             'face': Text(value=faces.SLEEP, position=self._layout['face'], color=WHITE, font=fonts.Huge),
@@ -65,15 +65,15 @@ class View(object):
             'friend_name': Text(value=None, position=self._layout['friend_name'], font=fonts.BoldSmall,
                                 color=GREEN),
 
-            'name': CurvedText(value='pwnagotchi>', center=(120, 120), radius=107, start_angle=225, 
+            'name': CurvedText(value='pwnagotchi>', center=(120, 120), radius=107, start_angle=225,
                               font=fonts.Bold, color=GREEN),
 
             'status': CurvedText(value=self._voice.default(), center=(120, 120), radius=107, start_angle=90,
                                 font=fonts.Medium, color=WHITE),
 
-            'shakes': CurvedText(value='PWND 0 (00)', center=(120, 120), radius=107, start_angle=135, 
+            'shakes': CurvedText(value='PWND 0 (00)', center=(120, 120), radius=107, start_angle=135,
                                 font=fonts.Medium, color=CYAN),
-            
+
             'mode': CurvedText(value='AUTO', center=(120, 120), radius=107, start_angle=45,
                               font=fonts.Bold, color=CYAN),
         })
@@ -142,7 +142,7 @@ class View(object):
             value = f'PWND {value}'
         elif key == 'name':
             value = f'{value}>'
-        
+
         # Special handling for face to support both text and images
         if key == 'face' and isinstance(value, str):
             # Try to load corresponding face image
@@ -161,9 +161,9 @@ class View(object):
                             logging.error(f"[FACE] Component doesn't have image attr: {type(face_component)}")
                     else:
                         logging.error("[FACE] Face component not found in state")
-        
+
         self._state.set(key, value)
-    
+
     def _get_face_name_from_value(self, face_value):
         """Map a face text value to its name for image lookup."""
         face_map = {

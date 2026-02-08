@@ -22,7 +22,7 @@ class DisplayImpl(object):
             # status is special :D
             'status': {
                 'pos': (0, 0),
-                'font': fonts.status_font(fonts.Medium),
+                'font': None,  # Will be set in layout() after fonts.setup()
                 'max': 20
             }
         }

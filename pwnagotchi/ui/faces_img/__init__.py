@@ -24,16 +24,16 @@ FACES_DIR = os.path.dirname(os.path.abspath(__file__))
 def get_face_image(face_name, size=(80, 80)):
     """
     Load a face image by name.
-    
+
     Args:
         face_name: Name of the face (e.g., 'happy', 'sad', 'excited')
         size: Tuple of (width, height) to resize to
-        
+
     Returns:
         PIL Image object or None if image doesn't exist
     """
     face_path = os.path.join(FACES_DIR, f"{face_name.lower()}.png")
-    
+
     if os.path.exists(face_path):
         try:
             img = Image.open(face_path)
