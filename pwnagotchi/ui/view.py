@@ -17,15 +17,16 @@ from pwnagotchi.ui.components import *
 from pwnagotchi.ui.state import State
 from pwnagotchi.voice import Voice
 
-# RGB Color mode for high-resolution IPS display
+# ── Round Display Color Scheme ──────────────────────────────────────────────
+# RGB colors for the 240x240 IPS display. Used by CurvedText and face rendering.
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-GREEN = (0, 255, 100)
-CYAN = (0, 200, 255)
-RED = (255, 50, 50)
-YELLOW = (255, 255, 0)
+GREEN = (0, 255, 100)      # Pwnagotchi name, friend info
+CYAN = (0, 200, 255)       # Channel, APS, uptime, shakes, mode
+RED = (255, 50, 50)        # (Reserved for alerts)
+YELLOW = (255, 255, 0)     # (Reserved for warnings)
 
-# Legacy support for monochrome
+# Legacy monochrome values (kept for upstream compatibility)
 WHITE_MONO = 0xff
 BLACK_MONO = 0x00
 ROOT = None

@@ -1,3 +1,11 @@
+"""
+UI components for pwnagotchi display rendering.
+
+Upstream components: Widget, Bitmap, Line, Rect, FilledRect, LabeledValue
+Custom additions for round display:
+  - Text: Extended with 'image' parameter for PNG face support
+  - CurvedText: Draws text along a circular arc (for round LCD layout)
+"""
 from PIL import Image
 from textwrap import TextWrapper
 import math
@@ -41,6 +49,12 @@ class FilledRect(Widget):
 
 
 class Text(Widget):
+    """Text widget with optional image support.
+
+    Custom addition: 'image' parameter allows rendering a PIL Image
+    instead of text, used for face PNG images on the round display.
+    """
+
     def __init__(self, value="", position=(0, 0), font=None, color=0, wrap=False, max_length=0, image=None):
         super().__init__(position, color)
         self.value = value

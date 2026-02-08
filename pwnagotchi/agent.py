@@ -254,7 +254,7 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
                 return (ap, {'mac': station_mac, 'vendor': ''})
         return None
 
-    def _update_uptime(self, s):
+    def _update_uptime(self):
         secs = pwnagotchi.uptime()
         self._view.set('uptime', utils.secs_to_hhmmss(secs))
         # self._view.set('epoch', '%04d' % self._epoch.epoch)
@@ -336,12 +336,22 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
 
     def _fetch_stats(self):
         while True:
-            s = self.session()
-            self._update_uptime(s)
-            self._update_advertisement(s)
-            self._update_peers()
-            self._update_counters()
-            self._update_handshakes(0)
+            # Uptime doesn't depend on bettercap — update it unconditionally
+            try:
+                self._update_uptime()
+            except Exception as e:
+                logging.debug("error updating uptime: %s" % e)
+
+            # Everything else requires a bettercap session
+            try:
+                s = self.session()
+                self._update_advertisement(s)
+                self._update_peers()
+                self._update_counters()
+                self._update_handshakes(0)
+            except Exception as e:
+                logging.debug("error fetching bettercap stats: %s" % e)
+
             time.sleep(1)
 
     async def _on_event(self, msg):
