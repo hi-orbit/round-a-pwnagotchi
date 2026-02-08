@@ -58,9 +58,10 @@ class Waveshare1inch28(DisplayImpl):
             # Import the Waveshare library
             import sys
             import os
+            import importlib
             from pathlib import Path
 
-            # Try multiple possible library paths
+            # Try multiple possible library paths (pointing to the 'lib' directory)
             possible_paths = [
                 '/home/noppitgotchi/app/LCD_Module_RPI_code/RaspberryPi/python/lib',
                 '/home/pi/pwnagotchi/LCD_Module_RPI_code/RaspberryPi/python/lib',
@@ -71,16 +72,30 @@ class Waveshare1inch28(DisplayImpl):
 
             lib_path = None
             for path in possible_paths:
-                if os.path.exists(path):
+                if os.path.exists(path) and os.path.isfile(os.path.join(path, 'LCD_1inch28.py')):
                     lib_path = path
-                    sys.path.insert(0, path)
                     logging.info(f"Found LCD library at: {path}")
                     break
 
             if not lib_path:
                 raise ImportError(f"LCD library not found. Tried: {possible_paths}")
 
-            from LCD_1inch28 import LCD_1inch28
+            # Ensure the lib directory has an __init__.py so relative imports work
+            init_file = os.path.join(lib_path, '__init__.py')
+            if not os.path.exists(init_file):
+                try:
+                    with open(init_file, 'w') as f:
+                        f.write('# Auto-generated for package imports\n')
+                    logging.info(f"Created {init_file}")
+                except PermissionError:
+                    logging.warning(f"Could not create {init_file}, trying alternative import")
+
+            # Add the PARENT of lib to sys.path so 'lib' is a package
+            parent_path = os.path.dirname(lib_path)
+            if parent_path not in sys.path:
+                sys.path.insert(0, parent_path)
+
+            from lib.LCD_1inch28 import LCD_1inch28
 
             # Initialize the display
             self._display = LCD_1inch28()
@@ -95,7 +110,7 @@ class Waveshare1inch28(DisplayImpl):
 
         except ImportError as e:
             logging.error(f"Could not import Waveshare LCD library: {e}")
-            logging.error("Make sure LCD_Module_RPI_code is installed in ~/pwnagotchi/ directory")
+            logging.error("Make sure LCD_Module_RPI_code is installed in ~/app/ or ~/pwnagotchi/ directory")
             logging.error(f"Tried paths: {possible_paths}")
             raise
         except Exception as e:
