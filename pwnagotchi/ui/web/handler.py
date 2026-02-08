@@ -8,7 +8,8 @@ from functools import wraps
 
 # https://stackoverflow.com/questions/14888799/disable-console-messages-in-flask-server
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
-os.environ['WERKZEUG_RUN_MAIN'] = 'true'
+# Don't set WERKZEUG_RUN_MAIN - causes KeyError with WERKZEUG_SERVER_FD
+# os.environ['WERKZEUG_RUN_MAIN'] = 'true'
 
 import pwnagotchi
 import pwnagotchi.grid as grid
@@ -32,6 +33,8 @@ class Handler:
 
         self._app.add_url_rule('/', 'index', self.with_auth(self.index))
         self._app.add_url_rule('/ui', 'ui', self.with_auth(self.ui))
+        self._app.add_url_rule('/display', 'display_image', self.display_image)
+        self._app.add_url_rule('/display/viewer', 'display_viewer', self.display_viewer)
 
         self._app.add_url_rule('/shutdown', 'shutdown', self.with_auth(self.shutdown), methods=['POST'])
         self._app.add_url_rule('/reboot', 'reboot', self.with_auth(self.reboot), methods=['POST'])
@@ -69,6 +72,18 @@ class Handler:
             return f(*args, **kwargs)
 
         return wrapper
+
+    def display_image(self):
+        """Serve the current canvas image"""
+        canvas_path = '/tmp/pwnagotchi_canvas.png'
+        if os.path.exists(canvas_path):
+            return send_file(canvas_path, mimetype='image/png', max_age=0)
+        else:
+            abort(404)
+
+    def display_viewer(self):
+        """Serve the display viewer HTML page"""
+        return render_template('display_viewer.html')
 
     def index(self):
         return render_template('index.html',

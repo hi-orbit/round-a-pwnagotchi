@@ -16,9 +16,34 @@ from pwnagotchi.ui.hw.waveshare213d import Waveshare213d
 from pwnagotchi.ui.hw.waveshare213bc import Waveshare213bc
 from pwnagotchi.ui.hw.waveshare213inb_v4 import Waveshare213bV4
 from pwnagotchi.ui.hw.waveshare35lcd import Waveshare35lcd
+from pwnagotchi.ui.hw.waveshare1inch28 import Waveshare1inch28
 from pwnagotchi.ui.hw.spotpear24inch import Spotpear24inch
 
+# Import custom display backends for development
+import os
+import logging
+
 def display_for(config):
+    # Check for environment-based display backend override (for development)
+    display_backend = os.getenv("DISPLAY_BACKEND", "").lower()
+    
+    if display_backend == "pygame":
+        logging.info("Using Pygame display backend (development mode)")
+        try:
+            from pwnagotchi.display.pygame_display import PygameDisplay
+            return PygameDisplay(config)
+        except ImportError as e:
+            logging.error(f"Could not load Pygame display: {e}")
+            logging.error("Make sure pygame is installed: pip install pygame")
+    
+    elif display_backend == "spi":
+        logging.info("Using SPI round display backend")
+        try:
+            from pwnagotchi.display.spi_display import SPIDisplay
+            return SPIDisplay(config)
+        except ImportError as e:
+            logging.error(f"Could not load SPI display: {e}")
+    
     # config has been normalized already in utils.load_config
     if config['ui']['display']['type'] == 'inky':
         return Inky(config)
@@ -73,6 +98,9 @@ def display_for(config):
 
     elif config['ui']['display']['type'] == 'waveshare35lcd':
         return Waveshare35lcd(config)
+
+    elif config['ui']['display']['type'] == 'waveshare1inch28':
+        return Waveshare1inch28(config)
 
     elif config['ui']['display']['type'] == 'spotpear24inch':
         return Spotpear24inch(config)

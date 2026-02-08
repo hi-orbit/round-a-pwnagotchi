@@ -5,7 +5,8 @@ import os
 
 # https://stackoverflow.com/questions/14888799/disable-console-messages-in-flask-server
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
-os.environ['WERKZEUG_RUN_MAIN'] = 'true'
+# Don't set WERKZEUG_RUN_MAIN - causes KeyError with WERKZEUG_SERVER_FD
+# os.environ['WERKZEUG_RUN_MAIN'] = 'true'
 
 from flask import Flask
 from flask_cors import CORS

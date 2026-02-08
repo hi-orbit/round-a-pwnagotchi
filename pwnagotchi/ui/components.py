@@ -1,5 +1,6 @@
 from PIL import Image
 from textwrap import TextWrapper
+import math
 
 
 class Widget(object):
@@ -40,15 +41,25 @@ class FilledRect(Widget):
 
 
 class Text(Widget):
-    def __init__(self, value="", position=(0, 0), font=None, color=0, wrap=False, max_length=0):
+    def __init__(self, value="", position=(0, 0), font=None, color=0, wrap=False, max_length=0, image=None):
         super().__init__(position, color)
         self.value = value
         self.font = font
         self.wrap = wrap
         self.max_length = max_length
+        self.image = image  # PIL Image object for face images
         self.wrapper = TextWrapper(width=self.max_length, replace_whitespace=False) if wrap else None
 
     def draw(self, canvas, drawer):
+        # If an image is set, draw it instead of text
+        if self.image is not None:
+            try:
+                canvas.paste(self.image, self.xy, self.image if self.image.mode == 'RGBA' else None)
+                return
+            except Exception as e:
+                # Fall back to text if image fails
+                pass
+        
         if self.value is not None:
             if self.wrap:
                 text = '\n'.join(self.wrapper.wrap(self.value))
@@ -73,3 +84,84 @@ class LabeledValue(Widget):
             pos = self.xy
             drawer.text(pos, self.label, font=self.label_font, fill=self.color)
             drawer.text((pos[0] + self.label_spacing + 5 * len(self.label), pos[1]), self.value, font=self.text_font, fill=self.color)
+
+
+class CurvedText(Widget):
+    def __init__(self, value="", center=(120, 120), radius=100, start_angle=0, font=None, color=0):
+        """
+        Draw text along a circular arc with rotated characters.
+        center: (x, y) center of the circle
+        radius: radius of the circle
+        start_angle: starting angle in degrees (0 = right, 90 = bottom, 180 = left, 270 = top)
+        """
+        super().__init__(center, color)
+        self.value = value
+        self.center = center
+        self.radius = radius
+        self.start_angle = start_angle
+        self.font = font
+
+    def draw(self, canvas, drawer):
+        if not self.value or self.font is None:
+            return
+        
+        from PIL import ImageDraw
+        
+        # Convert value to string and strip any newlines for single-line display
+        text = str(self.value).replace('\n', ' ').strip()
+        if not text:
+            return
+        
+        # Calculate total text width to center it on the arc
+        try:
+            total_width = drawer.textlength(text, font=self.font)
+        except:
+            total_width = len(text) * 6
+        
+        angle_span = (total_width / self.radius) * (180 / math.pi)
+        current_angle = self.start_angle - (angle_span / 2)
+        
+        for char in text:
+            # Calculate character width
+            try:
+                char_width = drawer.textlength(char, font=self.font)
+            except:
+                char_width = 6
+            
+            # Get character dimensions
+            try:
+                bbox = drawer.textbbox((0, 0), char, font=self.font)
+                char_h = bbox[3] - bbox[1]
+                char_w = bbox[2] - bbox[0]
+            except:
+                char_h = 12
+                char_w = int(char_width)
+            
+            # Calculate position on the circle
+            angle_rad = math.radians(current_angle)
+            x = self.center[0] + self.radius * math.cos(angle_rad)
+            y = self.center[1] + self.radius * math.sin(angle_rad)
+            
+            # Create small image for rotated character
+            padding = 20
+            char_img = Image.new('RGBA', (char_w + padding, char_h + padding), (0, 0, 0, 0))
+            char_drawer = ImageDraw.Draw(char_img)
+            
+            # Draw character in center of temp image
+            char_drawer.text((padding // 2, padding // 2), char, font=self.font, fill=self.color)
+            
+            # Rotate character so bottom points toward center (perpendicular to radius)
+            rotation_angle = current_angle + 90
+            rotated = char_img.rotate(-rotation_angle, expand=True, resample=Image.BICUBIC)
+            
+            # Paste rotated character onto main canvas
+            paste_x = int(x - rotated.width / 2)
+            paste_y = int(y - rotated.height / 2)
+            
+            # Ensure paste position is within canvas bounds
+            if paste_x >= 0 and paste_y >= 0:
+                canvas.paste(rotated, (paste_x, paste_y), rotated)
+            
+            # Move to next character position
+            char_angle_span = (char_width / self.radius) * (180 / math.pi)
+            current_angle += char_angle_span

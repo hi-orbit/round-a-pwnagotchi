@@ -99,10 +99,17 @@ def cpu_load():
 
 
 def temperature(celsius=True):
-    with open('/sys/class/thermal/thermal_zone0/temp', 'rt') as fp:
-        temp = int(fp.read().strip())
-    c = int(temp / 1000)
-    return c if celsius else ((c * (9 / 5)) + 32)
+    import os
+    if os.getenv("DEV_MODE") == "1":
+        return 35 if celsius else 95  # Return fake temperature in dev mode
+    
+    try:
+        with open('/sys/class/thermal/thermal_zone0/temp', 'rt') as fp:
+            temp = int(fp.read().strip())
+        c = int(temp / 1000)
+        return c if celsius else ((c * (9 / 5)) + 32)
+    except FileNotFoundError:
+        return 35 if celsius else 95  # Fallback temperature
 
 
 def shutdown():

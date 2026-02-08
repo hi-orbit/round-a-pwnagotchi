@@ -6,6 +6,16 @@ import logging
 import asyncio
 import _thread
 
+# Enable debugger for development mode
+if os.getenv("DEV_MODE") == "1":
+    try:
+        import debugpy
+        debugpy.listen(("0.0.0.0", 5678))
+        print("🟢 Debugger attached on port 5678")
+        logging.info("Debug mode enabled - debugger listening on port 5678")
+    except ImportError:
+        logging.warning("DEV_MODE=1 but debugpy not installed. Install with: pip install debugpy")
+
 import pwnagotchi
 import pwnagotchi.utils as utils
 import pwnagotchi.plugins as plugins
@@ -82,6 +92,11 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
         self.run('set wifi.handshakes.aggregate false')
 
     def start_monitor_mode(self):
+        import os
+        if os.getenv("DEV_MODE") == "1":
+            logging.warning("DEV_MODE: Skipping monitor mode setup (no WiFi hardware)")
+            return
+            
         mon_iface = self._config['main']['iface']
         mon_start_cmd = self._config['main']['mon_start_cmd']
         restart = not self._config['main']['no_restart']
@@ -120,6 +135,11 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
         self.start_advertising()
 
     def _wait_bettercap(self):
+        import os
+        if os.getenv("DEV_MODE") == "1":
+            logging.warning("DEV_MODE: Skipping bettercap wait (bettercap not available)")
+            return
+        
         while True:
             try:
                 _s = self.session()
@@ -307,6 +327,10 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
 
 
     def start_session_fetcher(self):
+        import os
+        if os.getenv("DEV_MODE") == "1":
+            logging.warning("DEV_MODE: Skipping session fetcher (bettercap not available)")
+            return
         _thread.start_new_thread(self._fetch_stats, ())
 
 
@@ -364,6 +388,10 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
                 logging.debug("Error while polling via websocket (%s)", ex)
 
     def start_event_polling(self):
+        import os
+        if os.getenv("DEV_MODE") == "1":
+            logging.warning("DEV_MODE: Skipping event polling (bettercap not available)")
+            return
         # start a thread and pass in the mainloop
         _thread.start_new_thread(self._event_poller, (asyncio.get_event_loop(),))
 

@@ -9,6 +9,7 @@ from PIL import ImageDraw
 import pwnagotchi
 import pwnagotchi.plugins as plugins
 import pwnagotchi.ui.faces as faces
+import pwnagotchi.ui.faces_img as faces_img
 import pwnagotchi.ui.fonts as fonts
 import pwnagotchi.ui.web as web
 import pwnagotchi.utils as utils
@@ -16,8 +17,17 @@ from pwnagotchi.ui.components import *
 from pwnagotchi.ui.state import State
 from pwnagotchi.voice import Voice
 
-WHITE = 0xff
-BLACK = 0x00
+# RGB Color mode for high-resolution IPS display
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 100)
+CYAN = (0, 200, 255)
+RED = (255, 50, 50)
+YELLOW = (255, 255, 0)
+
+# Legacy support for monochrome
+WHITE_MONO = 0xff
+BLACK_MONO = 0x00
 ROOT = None
 
 
@@ -40,41 +50,32 @@ class View(object):
         self._width = self._layout['width']
         self._height = self._layout['height']
         self._state = State(state={
-            'channel': LabeledValue(color=BLACK, label='CH', value='00', position=self._layout['channel'],
-                                    label_font=fonts.Bold,
-                                    text_font=fonts.Medium),
-            'aps': LabeledValue(color=BLACK, label='APS', value='0 (00)', position=self._layout['aps'],
-                                label_font=fonts.Bold,
-                                text_font=fonts.Medium),
+            'channel': CurvedText(value='CH 00', center=(120, 120), radius=110, start_angle=180, 
+                                 font=fonts.Medium, color=CYAN),
+            
+            'aps': CurvedText(value='APS 0 (00)', center=(120, 120), radius=112, start_angle=270, 
+                             font=fonts.Medium, color=CYAN),
+            
+            'uptime': CurvedText(value='UP 00:00:00', center=(120, 120), radius=110, start_angle=0, 
+                                font=fonts.Medium, color=CYAN),
 
-            'uptime': LabeledValue(color=BLACK, label='UP', value='00:00:00', position=self._layout['uptime'],
-                                   label_font=fonts.Bold,
-                                   text_font=fonts.Medium),
+            'face': Text(value=faces.SLEEP, position=self._layout['face'], color=WHITE, font=fonts.Huge),
 
-            'line1': Line(self._layout['line1'], color=BLACK),
-            'line2': Line(self._layout['line2'], color=BLACK),
-
-            'face': Text(value=faces.SLEEP, position=self._layout['face'], color=BLACK, font=fonts.Huge),
-
-            'friend_face': Text(value=None, position=self._layout['friend_face'], font=fonts.Bold, color=BLACK),
+            'friend_face': Text(value=None, position=self._layout['friend_face'], font=fonts.Bold, color=GREEN),
             'friend_name': Text(value=None, position=self._layout['friend_name'], font=fonts.BoldSmall,
-                                color=BLACK),
+                                color=GREEN),
 
-            'name': Text(value='%s>' % 'pwnagotchi', position=self._layout['name'], color=BLACK, font=fonts.Bold),
+            'name': CurvedText(value='pwnagotchi>', center=(120, 120), radius=107, start_angle=225, 
+                              font=fonts.Bold, color=GREEN),
 
-            'status': Text(value=self._voice.default(),
-                           position=self._layout['status']['pos'],
-                           color=BLACK,
-                           font=self._layout['status']['font'],
-                           wrap=True,
-                           # the current maximum number of characters per line, assuming each character is 6 pixels wide
-                           max_length=self._layout['status']['max']),
+            'status': CurvedText(value=self._voice.default(), center=(120, 120), radius=107, start_angle=90,
+                                font=fonts.Medium, color=WHITE),
 
-            'shakes': LabeledValue(label='PWND ', value='0 (00)', color=BLACK,
-                                   position=self._layout['shakes'], label_font=fonts.Bold,
-                                   text_font=fonts.Medium),
-            'mode': Text(value='AUTO', position=self._layout['mode'],
-                         font=fonts.Bold, color=BLACK),
+            'shakes': CurvedText(value='PWND 0 (00)', center=(120, 120), radius=107, start_angle=135, 
+                                font=fonts.Medium, color=CYAN),
+            
+            'mode': CurvedText(value='AUTO', center=(120, 120), radius=107, start_angle=45,
+                              font=fonts.Bold, color=CYAN),
         })
 
         if state:
@@ -130,7 +131,69 @@ class View(object):
             time.sleep(delay)
 
     def set(self, key, value):
+        # Format values for CurvedText components that need labels
+        if key == 'channel':
+            value = f'CH {value}'
+        elif key == 'aps':
+            value = f'APS {value}'
+        elif key == 'uptime':
+            value = f'UP {value}'
+        elif key == 'shakes':
+            value = f'PWND {value}'
+        elif key == 'name':
+            value = f'{value}>'
+        
+        # Special handling for face to support both text and images
+        if key == 'face' and isinstance(value, str):
+            # Try to load corresponding face image
+            # Extract face name from the face value (e.g., "(◕‿‿◕)" -> "awake")
+            face_name = self._get_face_name_from_value(value)
+            if face_name:
+                face_image = faces_img.get_face_image(face_name, size=(160, 160))
+                if face_image is not None:
+                    # Access the face component directly from _state, not through .get()
+                    if 'face' in self._state._state:
+                        face_component = self._state._state['face']
+                        if hasattr(face_component, 'image'):
+                            face_component.image = face_image
+                            logging.info(f"[FACE] ✓ Using image for face: {face_name}")
+                        else:
+                            logging.error(f"[FACE] Component doesn't have image attr: {type(face_component)}")
+                    else:
+                        logging.error("[FACE] Face component not found in state")
+        
         self._state.set(key, value)
+    
+    def _get_face_name_from_value(self, face_value):
+        """Map a face text value to its name for image lookup."""
+        face_map = {
+            faces.LOOK_R: 'look_r',
+            faces.LOOK_L: 'look_l',
+            faces.LOOK_R_HAPPY: 'look_r_happy',
+            faces.LOOK_L_HAPPY: 'look_l_happy',
+            faces.SLEEP: 'sleep',
+            faces.SLEEP2: 'sleep2',
+            faces.AWAKE: 'awake',
+            faces.BORED: 'bored',
+            faces.INTENSE: 'intense',
+            faces.COOL: 'cool',
+            faces.HAPPY: 'happy',
+            faces.GRATEFUL: 'grateful',
+            faces.EXCITED: 'excited',
+            faces.MOTIVATED: 'motivated',
+            faces.DEMOTIVATED: 'demotivated',
+            faces.SMART: 'smart',
+            faces.LONELY: 'lonely',
+            faces.SAD: 'sad',
+            faces.ANGRY: 'angry',
+            faces.FRIEND: 'friend',
+            faces.BROKEN: 'broken',
+            faces.DEBUG: 'debug',
+            faces.UPLOAD: 'upload',
+            faces.UPLOAD1: 'upload1',
+            faces.UPLOAD2: 'upload2',
+        }
+        return face_map.get(face_value)
 
     def get(self, key):
         return self._state.get(key)
@@ -371,7 +434,8 @@ class View(object):
             state = self._state
             changes = state.changes(ignore=self._ignore_changes)
             if force or len(changes):
-                self._canvas = Image.new('1', (self._width, self._height), WHITE)
+                # Create RGB canvas with black background for IPS display
+                self._canvas = Image.new('RGB', (self._width, self._height), BLACK)
                 drawer = ImageDraw.Draw(self._canvas)
 
                 plugins.on('ui_update', self)
