@@ -54,7 +54,7 @@ class View(object):
             'channel': CurvedText(value='CH 00', center=(120, 120), radius=110, start_angle=180,
                                  font=fonts.Medium, color=CYAN),
 
-            'aps': CurvedText(value='APS 0 (00)', center=(120, 120), radius=112, start_angle=270,
+            'aps': CurvedText(value='APS 0 (00)', center=(120, 120), radius=110, start_angle=215,
                              font=fonts.Medium, color=CYAN),
 
             'uptime': CurvedText(value='UP 00:00:00', center=(120, 120), radius=110, start_angle=0,
@@ -69,7 +69,7 @@ class View(object):
             'name': CurvedText(value='pwnagotchi>', center=(120, 120), radius=107, start_angle=270,
                               font=fonts.Bold, color=GREEN),
 
-            'status': CurvedText(value=self._voice.default(), center=(120, 120), radius=85, start_angle=90,
+            'status': CurvedText(value=self._voice.default(), center=(120, 120), radius=78, start_angle=90,
                                 font=fonts.Medium, color=WHITE, flip=True),
 
             'shakes': CurvedText(value='PWND 0 (00)', center=(120, 120), radius=107, start_angle=135,

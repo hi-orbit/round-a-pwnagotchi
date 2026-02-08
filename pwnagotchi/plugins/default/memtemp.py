@@ -94,7 +94,7 @@ class MemTemp(plugins.Plugin):
             CurvedText(
                 value=" ".join([f"{x}:-" for x in self.fields]),
                 center=(120, 120),
-                radius=100,
+                radius=98,
                 start_angle=0,
                 font=fonts.Medium,
                 color=CYAN,
