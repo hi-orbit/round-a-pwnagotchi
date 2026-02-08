@@ -142,24 +142,28 @@ class View(object):
         elif key == 'shakes':
             value = f'PWND {value}'
         elif key == 'name':
+            # Strip any existing '>' and cursor artifacts before re-adding,
+            # since _refresh_handler feeds back already-formatted values
+            value = value.replace('█', '').strip().rstrip('>')
             value = f'{value}>'
 
-        # Special handling for face to support both text and images
+        # Special handling for face to support both text and images (including APNG animation)
         if key == 'face' and isinstance(value, str):
-            # Try to load corresponding face image
-            # Extract face name from the face value (e.g., "(◕‿‿◕)" -> "awake")
             face_name = self._get_face_name_from_value(value)
             if face_name:
-                face_image = faces_img.get_face_image(face_name, size=(160, 160))
-                if face_image is not None:
-                    # Access the face component directly from _state, not through .get()
+                frames = faces_img.get_face_frames(face_name, size=(160, 160))
+                if frames:
                     if 'face' in self._state._state:
                         face_component = self._state._state['face']
-                        if hasattr(face_component, 'image'):
-                            face_component.image = face_image
-                            logging.info(f"[FACE] ✓ Using image for face: {face_name}")
+                        if hasattr(face_component, 'set_frames'):
+                            face_component.set_frames(frames)
+                            if len(frames) > 1:
+                                logging.info(f"[FACE] ✓ Animated face: {face_name} ({len(frames)} frames)")
+                            else:
+                                logging.info(f"[FACE] ✓ Static face: {face_name}")
                         else:
-                            logging.error(f"[FACE] Component doesn't have image attr: {type(face_component)}")
+                            # Fallback for components without animation support
+                            face_component.image = frames[0]
                     else:
                         logging.error("[FACE] Face component not found in state")
 

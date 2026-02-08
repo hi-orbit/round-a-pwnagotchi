@@ -61,10 +61,28 @@ class Text(Widget):
         self.font = font
         self.wrap = wrap
         self.max_length = max_length
-        self.image = image  # PIL Image object for face images
+        self.image = image          # Current frame (PIL Image) for face rendering
+        self._frames = []           # All frames for animated faces (APNG)
+        self._frame_index = 0       # Current frame index for animation
         self.wrapper = TextWrapper(width=self.max_length, replace_whitespace=False) if wrap else None
 
+    def set_frames(self, frames):
+        """Set animation frames for this text widget.
+
+        Args:
+            frames: List of PIL Image objects. If len > 1, the face is animated
+                    and draw() will cycle through frames automatically.
+        """
+        self._frames = frames if frames else []
+        self._frame_index = 0
+        self.image = self._frames[0] if self._frames else None
+
     def draw(self, canvas, drawer):
+        # Animated face: cycle to next frame on each draw
+        if self._frames and len(self._frames) > 1:
+            self.image = self._frames[self._frame_index]
+            self._frame_index = (self._frame_index + 1) % len(self._frames)
+
         # If an image is set, draw it instead of text
         if self.image is not None:
             try:
