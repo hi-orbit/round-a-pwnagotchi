@@ -62,9 +62,11 @@ class Waveshare1inch28(DisplayImpl):
 
             # Try multiple possible library paths
             possible_paths = [
+                '/home/noppitgotchi/app/LCD_Module_RPI_code/RaspberryPi/python/lib',
                 '/home/pi/pwnagotchi/LCD_Module_RPI_code/RaspberryPi/python/lib',
                 '/home/noppitgotchi/pwnagotchi/LCD_Module_RPI_code/RaspberryPi/python/lib',
                 str(Path.home() / 'pwnagotchi' / 'LCD_Module_RPI_code' / 'RaspberryPi' / 'python' / 'lib'),
+                str(Path.home() / 'app' / 'LCD_Module_RPI_code' / 'RaspberryPi' / 'python' / 'lib'),
             ]
 
             lib_path = None
