@@ -22,12 +22,17 @@ class KeyPair(object):
         if not os.path.exists(self.path):
             os.makedirs(self.path)
 
-        while True:
+        max_retries = 3
+        for attempt in range(max_retries):
             # first time, generate new keys
             if not os.path.exists(self.priv_path) or not os.path.exists(self.pub_path):
                 self._view.on_keys_generation()
                 logging.info("generating %s ..." % self.priv_path)
-                os.system("pwngrid -generate -keys '%s'" % self.path)
+                # try pwngrid first, fall back to native Python key generation
+                ret = os.system("pwngrid -generate -keys '%s'" % self.path)
+                if ret != 0 or not os.path.exists(self.priv_path):
+                    logging.warning("pwngrid not available, generating RSA keys with Python ...")
+                    self._generate_keys_native()
 
             # load keys: they might be corrupted if the unit has been turned off during the generation, in this case
             # the exception will remove the files and go back at the beginning of this loop.
@@ -56,12 +61,46 @@ class KeyPair(object):
 
             except Exception as e:
                 # if we're here, loading the keys broke something ...
-                logging.exception("error loading keys, maybe corrupted, deleting and regenerating ...")
+                logging.exception("error loading keys, maybe corrupted, deleting and regenerating (attempt %d/%d) ..." % (attempt + 1, max_retries))
                 try:
                     os.remove(self.priv_path)
+                except:
+                    pass
+                try:
                     os.remove(self.pub_path)
                 except:
                     pass
+
+        # exhausted retries — generate with Python as last resort
+        logging.error("failed to load keys after %d attempts, generating fresh keys with Python ..." % max_retries)
+        self._generate_keys_native()
+        try:
+            with open(self.priv_path) as fp:
+                self.priv_key = RSA.importKey(fp.read())
+            with open(self.pub_path) as fp:
+                self.pub_key = RSA.importKey(fp.read())
+                self.pub_key_pem = self.pub_key.exportKey('PEM').decode("ascii")
+                if 'RSA PUBLIC KEY' not in self.pub_key_pem:
+                    self.pub_key_pem = self.pub_key_pem.replace('PUBLIC KEY', 'RSA PUBLIC KEY')
+            pem_ascii = self.pub_key_pem.encode("ascii")
+            self.pub_key_pem_b64 = base64.b64encode(pem_ascii).decode("ascii")
+            self.fingerprint = hashlib.sha256(pem_ascii).hexdigest()
+            with open(self.fingerprint_path, 'w+t') as fp:
+                fp.write(self.fingerprint)
+            self._view.on_starting()
+        except Exception as e:
+            logging.exception("fatal: could not generate or load RSA keys")
+            raise
+
+    def _generate_keys_native(self):
+        """Generate RSA key pair using PyCryptodome when pwngrid is not available."""
+        key = RSA.generate(4096)
+        with open(self.priv_path, 'wb') as fp:
+            fp.write(key.exportKey('PEM'))
+        os.chmod(self.priv_path, 0o600)
+        with open(self.pub_path, 'wb') as fp:
+            fp.write(key.publickey().exportKey('PEM'))
+        logging.info("RSA keys generated natively at %s" % self.priv_path)
 
     def sign(self, message):
         hasher = SHA256.new(message.encode("ascii"))
