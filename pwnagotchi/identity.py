@@ -4,6 +4,7 @@ import Crypto.Hash.SHA256 as SHA256
 import base64
 import hashlib
 import os
+import shutil
 import logging
 
 DefaultPath = "/etc/pwnagotchi/"
@@ -29,9 +30,13 @@ class KeyPair(object):
                 self._view.on_keys_generation()
                 logging.info("generating %s ..." % self.priv_path)
                 # try pwngrid first, fall back to native Python key generation
-                ret = os.system("pwngrid -generate -keys '%s'" % self.path)
-                if ret != 0 or not os.path.exists(self.priv_path):
-                    logging.warning("pwngrid not available, generating RSA keys with Python ...")
+                if shutil.which("pwngrid"):
+                    ret = os.system("pwngrid -generate -keys '%s'" % self.path)
+                    if ret != 0 or not os.path.exists(self.priv_path):
+                        logging.warning("pwngrid failed, generating RSA keys with Python ...")
+                        self._generate_keys_native()
+                else:
+                    logging.info("pwngrid not installed, generating RSA keys with Python ...")
                     self._generate_keys_native()
 
             # load keys: they might be corrupted if the unit has been turned off during the generation, in this case
@@ -94,7 +99,7 @@ class KeyPair(object):
 
     def _generate_keys_native(self):
         """Generate RSA key pair using PyCryptodome when pwngrid is not available."""
-        key = RSA.generate(4096)
+        key = RSA.generate(2048)
         with open(self.priv_path, 'wb') as fp:
             fp.write(key.exportKey('PEM'))
         os.chmod(self.priv_path, 0o600)

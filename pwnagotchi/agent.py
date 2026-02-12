@@ -140,13 +140,19 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
             logging.warning("DEV_MODE: Skipping bettercap wait (bettercap not available)")
             return
 
-        while True:
+        max_wait = 60
+        waited = 0
+        while waited < max_wait:
             try:
                 _s = self.session()
                 return
             except Exception:
-                logging.info("waiting for bettercap API to be available ...")
+                logging.info("waiting for bettercap API to be available (%d/%ds) ..." % (waited, max_wait))
                 time.sleep(1)
+                waited += 1
+
+        logging.error("bettercap API not available after %ds — is bettercap running? (sudo systemctl start bettercap)" % max_wait)
+        raise RuntimeError("bettercap API not available at localhost:8081 after %d seconds" % max_wait)
 
     def start(self):
         self.start_ai()
