@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-Face image generator for Pwnagotchi – soft glowing cyan cartoon style.
+Face image generator for Pwnagotchi – cartoon eyeball style.
 
-Design:
-  - Big, simple cartoon shapes on transparent background
-  - Soft radial gradient: cyan edges → near-white centres (glass/translucent)
-  - No outlines, no highlights, no fine details – just soft glowing blobs
-  - Kawaii / emoji-style proportions
+Design (from reference art):
+  - Eyes: dark navy/teal centre (iris) + bright cyan outer ring (sclera) + white specular dot
+  - Half-closed eyes: same style but top sliced at angle (built-in eyebrow)
+  - Sleep eyes: thick curved cyan arcs / crescents
+  - Mouth: small cyan half-circle (smile/frown) relative to eyes
+  - Cool: oversized dark sunglasses with cyan frame and highlight dots
+  - Hearts: cyan gradient hearts
+  - No face outline – floating features on transparent background
 """
 
 from PIL import Image, ImageDraw, ImageFilter
@@ -14,166 +17,258 @@ import os
 import math
 
 # ── Colour palette ──────────────────────────────────────────────────────────
-# Gradient goes from EDGE (outer) → MID → CENTER (inner)
-EDGE   = (120, 220, 230)   # Outer cyan
-MID    = (170, 240, 245)   # Mid-tone
-CENTER = (220, 252, 253)   # Near-white centre
+DARK       = (15, 50, 70)        # Dark navy-teal for eye iris / sunglasses fill
+DARK_MID   = (25, 70, 95)        # Slightly lighter dark for gradient
+CYAN       = (90, 210, 235)      # Bright cyan for eye border / sclera / outlines
+CYAN_LIGHT = (160, 240, 250)     # Lighter cyan for mouth fills, inner highlights
+CYAN_PALE  = (190, 248, 253)     # Palest cyan for centres of mouth/hearts
+WHITE      = (255, 255, 255)     # Specular highlights
 
-# ── Canvas / layout constants ───────────────────────────────────────────────
+# ── Canvas / layout ─────────────────────────────────────────────────────────
 SIZE = 160
-CX = SIZE // 2             # Canvas centre x
-EYE_Y = 52                 # Vertical centre of eyes
-EYE_SEP = 52               # Distance from centre to each eye
-EYE_R = 26                 # Default eye radius
-MOUTH_Y = 118              # Vertical centre of mouth
-MOUTH_RX = 34              # Mouth horizontal radius
-MOUTH_RY = 18              # Mouth vertical radius (arc depth)
+CX = SIZE // 2
+EYE_Y = 58                 # Eye vertical centre
+EYE_SEP = 38               # Half-distance between eye centres
+EYE_R = 28                 # Outer eye radius (sclera)
+IRIS_RATIO = 0.72           # Iris radius as fraction of sclera
+HIGHLIGHT_RATIO = 0.20      # Highlight dot radius as fraction of sclera
+MOUTH_Y = 120               # Mouth vertical centre
+MOUTH_RX = 28               # Mouth half-width
+MOUTH_RY = 14               # Mouth half-height
 
 
-# ── Drawing helpers ─────────────────────────────────────────────────────────
+# ── Drawing primitives ──────────────────────────────────────────────────────
 
-def _gradient_circle(img, cx, cy, r):
-    """Draw a filled circle with a soft radial gradient (cyan edge → white centre)."""
-    for i in range(r, 0, -1):
-        t = 1.0 - (i / r)  # 0 at edge, 1 at centre
-        t = t * t           # Ease-in for softer falloff
-        color = (
-            int(EDGE[0] + (CENTER[0] - EDGE[0]) * t),
-            int(EDGE[1] + (CENTER[1] - EDGE[1]) * t),
-            int(EDGE[2] + (CENTER[2] - EDGE[2]) * t),
-            255,
-        )
-        draw = ImageDraw.Draw(img)
-        draw.ellipse([cx - i, cy - i, cx + i, cy + i], fill=color)
+def _circle(draw, cx, cy, r, fill):
+    draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=fill)
 
 
-def _gradient_half_circle(img, cx, cy, r, top=True):
-    """Draw a half-circle with radial gradient.
-    top=True  → flat bottom, round top  (open-top / happy eye)
-    top=False → flat top, round bottom  (droopy / sleepy)
-    """
-    # Draw a full gradient circle, then mask out the unwanted half
+def _ellipse(draw, cx, cy, rx, ry, fill):
+    draw.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=fill)
+
+
+def _soft_edge(img, radius=1.2):
+    """Very subtle anti-alias softening."""
+    blurred = img.filter(ImageFilter.GaussianBlur(radius))
+    out = Image.alpha_composite(Image.new('RGBA', img.size, (0, 0, 0, 0)), blurred)
+    return Image.alpha_composite(out, img)
+
+
+# ── Eye drawing ─────────────────────────────────────────────────────────────
+
+def _draw_eye(img, cx, cy, r=EYE_R):
+    """Full round cartoon eye: cyan ring + dark centre + white highlight."""
+    draw = ImageDraw.Draw(img)
+    # Outer ring (sclera) – cyan
+    _circle(draw, cx, cy, r, CYAN)
+    # Thin darker ring for depth
+    _circle(draw, cx, cy, int(r * 0.88), (50, 130, 160))
+    # Dark iris
+    ir = int(r * IRIS_RATIO)
+    _circle(draw, cx, cy, ir, DARK)
+    # Subtle gradient – slightly lighter inner zone
+    _circle(draw, cx, cy, int(ir * 0.5), DARK_MID)
+    # White specular highlight – upper-left
+    hr = max(int(r * HIGHLIGHT_RATIO), 3)
+    hx = cx - int(r * 0.32)
+    hy = cy - int(r * 0.32)
+    _circle(draw, hx, hy, hr, WHITE)
+
+
+def _draw_eye_half_top(img, cx, cy, r=EYE_R, angle=-15):
+    """Half-closed eye – flat/angled bottom, open top. For sad/droopy looks.
+    Draws full eye then masks bottom portion with an angled cut."""
+    # Draw full eye on temp layer
     temp = Image.new('RGBA', img.size, (0, 0, 0, 0))
-    _gradient_circle(temp, cx, cy, r)
-    # Create mask: keep only the desired half
+    _draw_eye(temp, cx, cy, r)
+    # Create angled mask – keep top portion
     mask = Image.new('L', img.size, 255)
     md = ImageDraw.Draw(mask)
-    if top:
-        # Keep top half → black-out bottom
-        md.rectangle([0, cy, SIZE, SIZE], fill=0)
-    else:
-        # Keep bottom half → black-out top
-        md.rectangle([0, 0, SIZE, cy], fill=0)
-    temp.putalpha(Image.merge('L', [temp.split()[3]]).point(lambda a: a))
-    # Apply the half-mask
-    r_chan, g_chan, b_chan, a_chan = temp.split()
-    a_chan = Image.composite(a_chan, Image.new('L', img.size, 0), mask)
-    temp = Image.merge('RGBA', (r_chan, g_chan, b_chan, a_chan))
+    # Angled cut line across the eye
+    cut_y = cy + int(r * 0.15)
+    angle_rad = math.radians(angle)
+    dx = int(r * 1.5 * math.cos(angle_rad))
+    dy = int(r * 1.5 * math.sin(angle_rad))
+    # Fill below the cut with black (remove)
+    poly = [
+        (cx - dx, cut_y - dy),
+        (cx + dx, cut_y + dy),
+        (cx + dx, cy + r + 10),
+        (cx - dx, cy + r + 10),
+    ]
+    md.polygon(poly, fill=0)
+    # Apply mask
+    r_c, g_c, b_c, a_c = temp.split()
+    a_c = Image.composite(a_c, Image.new('L', img.size, 0), mask)
+    temp = Image.merge('RGBA', (r_c, g_c, b_c, a_c))
     img.alpha_composite(temp)
 
 
-def _gradient_ellipse(img, cx, cy, rx, ry):
-    """Draw a filled ellipse with a soft radial gradient."""
-    steps = max(rx, ry)
-    for i in range(steps, 0, -1):
-        t = 1.0 - (i / steps)
-        t = t * t
-        color = (
-            int(EDGE[0] + (CENTER[0] - EDGE[0]) * t),
-            int(EDGE[1] + (CENTER[1] - EDGE[1]) * t),
-            int(EDGE[2] + (CENTER[2] - EDGE[2]) * t),
-            255,
-        )
-        sx = int(rx * (i / steps))
-        sy = int(ry * (i / steps))
-        draw = ImageDraw.Draw(img)
-        draw.ellipse([cx - sx, cy - sy, cx + sx, cy + sy], fill=color)
-
-
-def _gradient_half_ellipse(img, cx, cy, rx, ry, top=True):
-    """Draw a half-ellipse with radial gradient (for mouth shapes)."""
+def _draw_eye_half_bottom(img, cx, cy, r=EYE_R, angle=15):
+    """Half-closed eye – flat/angled top, open bottom. Angry/glaring look.
+    Like eyelids pushed down from above."""
     temp = Image.new('RGBA', img.size, (0, 0, 0, 0))
-    _gradient_ellipse(temp, cx, cy, rx, ry)
+    _draw_eye(temp, cx, cy, r)
     mask = Image.new('L', img.size, 255)
     md = ImageDraw.Draw(mask)
-    if top:
-        md.rectangle([0, cy, SIZE, SIZE], fill=0)
-    else:
-        md.rectangle([0, 0, SIZE, cy], fill=0)
-    r_chan, g_chan, b_chan, a_chan = temp.split()
-    a_chan = Image.composite(a_chan, Image.new('L', img.size, 0), mask)
-    temp = Image.merge('RGBA', (r_chan, g_chan, b_chan, a_chan))
+    cut_y = cy - int(r * 0.15)
+    angle_rad = math.radians(angle)
+    dx = int(r * 1.5 * math.cos(angle_rad))
+    dy = int(r * 1.5 * math.sin(angle_rad))
+    poly = [
+        (cx - dx, cut_y + dy),
+        (cx + dx, cut_y - dy),
+        (cx + dx, cy - r - 10),
+        (cx - dx, cy - r - 10),
+    ]
+    md.polygon(poly, fill=0)
+    r_c, g_c, b_c, a_c = temp.split()
+    a_c = Image.composite(a_c, Image.new('L', img.size, 0), mask)
+    temp = Image.merge('RGBA', (r_c, g_c, b_c, a_c))
     img.alpha_composite(temp)
 
 
-def _soft_blur(img, radius=2, passes=2):
-    """Gentle edge softening – keeps shapes but removes hard aliased edges."""
-    result = img
-    for _ in range(passes):
-        result = result.filter(ImageFilter.GaussianBlur(radius))
-    # Composite soft version behind sharp for subtle glow
-    out = Image.new('RGBA', img.size, (0, 0, 0, 0))
-    out = Image.alpha_composite(out, result)
-    out = Image.alpha_composite(out, img)
-    return out
-
-
-def _draw_line(img, x1, y1, x2, y2, width=5):
-    """Draw a thick soft line."""
+def _draw_arc_eye(img, cx, cy, r=EYE_R):
+    """Curved crescent arc eye – for sleep / grateful (like ⇀ or ↼)."""
     draw = ImageDraw.Draw(img)
-    draw.line([x1, y1, x2, y2], fill=EDGE, width=width)
+    bbox = [cx - r, cy - int(r * 0.6), cx + r, cy + int(r * 0.6)]
+    draw.arc(bbox, 200, 340, fill=CYAN, width=max(5, int(r * 0.22)))
+    # Add subtle lighter inner arc
+    inner_bbox = [cx - r * 0.8, cy - int(r * 0.45), cx + r * 0.8, cy + int(r * 0.45)]
+    draw.arc(inner_bbox, 210, 330, fill=CYAN_LIGHT, width=max(3, int(r * 0.13)))
 
 
-def _draw_x(img, cx, cy, r):
-    """Draw an X shape."""
+def _draw_line_eye(img, cx, cy, w=None):
+    """Thin line eye – fully closed / flat."""
+    if w is None:
+        w = int(EYE_R * 0.9)
     draw = ImageDraw.Draw(img)
-    draw.line([cx - r, cy - r, cx + r, cy + r], fill=MID, width=5)
-    draw.line([cx - r, cy + r, cx + r, cy - r], fill=MID, width=5)
+    draw.line([cx - w, cy, cx + w, cy], fill=CYAN, width=4)
 
 
-def _draw_arc_eyes(img, cx, cy, r):
-    """Draw ^^ arc eyes (grateful)."""
+def _draw_x_eye(img, cx, cy, r=None):
+    """X-shaped eye – broken."""
+    if r is None:
+        r = int(EYE_R * 0.6)
     draw = ImageDraw.Draw(img)
-    bbox = [cx - r, cy - r, cx + r, cy + r]
-    draw.arc(bbox, 200, 340, fill=MID, width=6)
+    draw.line([cx - r, cy - r, cx + r, cy + r], fill=CYAN, width=5)
+    draw.line([cx - r, cy + r, cx + r, cy - r], fill=CYAN, width=5)
 
 
-def _draw_heart(img, cx, cy, s):
-    """Draw a simple filled heart shape."""
+def _draw_hash_eye(img, cx, cy, r=None):
+    """# shaped eye – debug."""
+    if r is None:
+        r = int(EYE_R * 0.55)
     draw = ImageDraw.Draw(img)
-    r = s * 0.4
-    # Two circles for top bumps
-    for ox in [-r * 0.55, r * 0.55]:
-        for i in range(int(r), 0, -1):
-            t = 1.0 - (i / r)
-            t = t * t
-            c = (
-                int(EDGE[0] + (CENTER[0] - EDGE[0]) * t),
-                int(EDGE[1] + (CENTER[1] - EDGE[1]) * t),
-                int(EDGE[2] + (CENTER[2] - EDGE[2]) * t),
-                255,
-            )
-            draw.ellipse([cx + ox - i, cy - r * 0.4 - i, cx + ox + i, cy - r * 0.4 + i], fill=c)
-    # Triangle bottom
+    w = 4
+    draw.line([cx - r, cy - r * 0.45, cx + r, cy - r * 0.45], fill=CYAN, width=w)
+    draw.line([cx - r, cy + r * 0.45, cx + r, cy + r * 0.45], fill=CYAN, width=w)
+    draw.line([cx - r * 0.45, cy - r, cx - r * 0.45, cy + r], fill=CYAN, width=w)
+    draw.line([cx + r * 0.45, cy - r, cx + r * 0.45, cy + r], fill=CYAN, width=w)
+
+
+def _draw_heart_eye(img, cx, cy, s=None):
+    """Heart-shaped eye with cyan gradient fill."""
+    if s is None:
+        s = int(EYE_R * 1.1)
+    draw = ImageDraw.Draw(img)
+    bump = s * 0.44
+    # Two bumps + triangle for heart shape
+    # Outer cyan
+    _circle(draw, cx - bump * 0.6, cy - bump * 0.25, bump, CYAN)
+    _circle(draw, cx + bump * 0.6, cy - bump * 0.25, bump, CYAN)
     pts = [
-        (cx - s * 0.48, cy - r * 0.15),
-        (cx + s * 0.48, cy - r * 0.15),
+        (cx - s * 0.82, cy),
+        (cx + s * 0.82, cy),
+        (cx, cy + s * 0.85),
+    ]
+    draw.polygon(pts, fill=CYAN)
+    # Inner lighter fill
+    inner = bump * 0.6
+    _circle(draw, cx - bump * 0.55, cy - bump * 0.2, inner, CYAN_LIGHT)
+    _circle(draw, cx + bump * 0.55, cy - bump * 0.2, inner, CYAN_LIGHT)
+    pts_in = [
+        (cx - s * 0.5, cy + s * 0.05),
+        (cx + s * 0.5, cy + s * 0.05),
         (cx, cy + s * 0.55),
     ]
-    draw.polygon(pts, fill=MID)
+    draw.polygon(pts_in, fill=CYAN_LIGHT)
+    # Centre highlight
+    tiny = inner * 0.35
+    _circle(draw, cx, cy - bump * 0.05, tiny, CYAN_PALE)
 
 
-def _draw_hash(img, cx, cy, r):
-    """Draw a # symbol."""
+def _draw_tear_eye(img, cx, cy, r=EYE_R):
+    """Eye with tear drops – for broken/crying face."""
+    _draw_eye(img, cx, cy, r)
     draw = ImageDraw.Draw(img)
-    o = r * 0.4
-    draw.line([cx - r, cy - o, cx + r, cy - o], fill=MID, width=4)
-    draw.line([cx - r, cy + o, cx + r, cy + o], fill=MID, width=4)
-    draw.line([cx - o, cy - r, cx - o, cy + r], fill=MID, width=4)
-    draw.line([cx + o, cy - r, cx + o, cy + r], fill=MID, width=4)
+    # Tear bubbles below the eye
+    tr = int(r * 0.28)
+    _circle(draw, cx - int(r * 0.45), cy + int(r * 0.85), tr, CYAN_LIGHT)
+    _circle(draw, cx + int(r * 0.25), cy + int(r * 1.0), int(tr * 0.7), CYAN_LIGHT)
+    # Tiny highlight in tear
+    _circle(draw, cx - int(r * 0.5), cy + int(r * 0.75), int(tr * 0.3), WHITE)
 
 
-# ── Eye + mouth shorthand ──────────────────────────────────────────────────
+# ── Mouth drawing ───────────────────────────────────────────────────────────
+
+def _draw_smile(img, cx, cy, rx=MOUTH_RX, ry=MOUTH_RY):
+    """Smile: half-ellipse, round on bottom, flat top. Cyan with lighter centre."""
+    temp = Image.new('RGBA', img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(temp)
+    # Outer cyan
+    _ellipse(draw, cx, cy, rx, ry, CYAN)
+    # Inner lighter
+    _ellipse(draw, cx, cy - int(ry * 0.1), int(rx * 0.6), int(ry * 0.55), CYAN_LIGHT)
+    # Mask out top half
+    mask = Image.new('L', img.size, 255)
+    md = ImageDraw.Draw(mask)
+    md.rectangle([0, 0, SIZE, cy], fill=0)
+    r_c, g_c, b_c, a_c = temp.split()
+    a_c = Image.composite(a_c, Image.new('L', img.size, 0), mask)
+    temp = Image.merge('RGBA', (r_c, g_c, b_c, a_c))
+    img.alpha_composite(temp)
+
+
+def _draw_frown(img, cx, cy, rx=MOUTH_RX, ry=MOUTH_RY):
+    """Frown: half-ellipse, round on top, flat bottom."""
+    temp = Image.new('RGBA', img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(temp)
+    _ellipse(draw, cx, cy, rx, ry, CYAN)
+    _ellipse(draw, cx, cy + int(ry * 0.1), int(rx * 0.6), int(ry * 0.55), CYAN_LIGHT)
+    mask = Image.new('L', img.size, 255)
+    md = ImageDraw.Draw(mask)
+    md.rectangle([0, cy, SIZE, SIZE], fill=0)
+    r_c, g_c, b_c, a_c = temp.split()
+    a_c = Image.composite(a_c, Image.new('L', img.size, 0), mask)
+    temp = Image.merge('RGBA', (r_c, g_c, b_c, a_c))
+    img.alpha_composite(temp)
+
+
+def _draw_flat_mouth(img, cx, cy, w=MOUTH_RX):
+    """Flat line mouth."""
+    draw = ImageDraw.Draw(img)
+    draw.line([cx - w, cy, cx + w, cy], fill=CYAN, width=4)
+
+
+def _draw_open_mouth(img, cx, cy, r=None):
+    """Small open 'o' mouth."""
+    if r is None:
+        r = int(MOUTH_RY * 0.6)
+    draw = ImageDraw.Draw(img)
+    _circle(draw, cx, cy, r, CYAN)
+    _circle(draw, cx, cy, int(r * 0.5), CYAN_LIGHT)
+
+
+def _draw_small_smile(img, cx, cy):
+    _draw_smile(img, cx, cy, rx=int(MOUTH_RX * 0.65), ry=int(MOUTH_RY * 0.65))
+
+
+def _draw_small_frown(img, cx, cy):
+    _draw_frown(img, cx, cy, rx=int(MOUTH_RX * 0.65), ry=int(MOUTH_RY * 0.65))
+
+
+# ── Layout helpers ──────────────────────────────────────────────────────────
 
 def _lx():
     return CX - EYE_SEP
@@ -181,232 +276,214 @@ def _lx():
 def _rx():
     return CX + EYE_SEP
 
-def _round_eyes(img, r=EYE_R, y=EYE_Y, x_offset=0):
-    _gradient_circle(img, _lx() + x_offset, y, r)
-    _gradient_circle(img, _rx() + x_offset, y, r)
-
-def _half_eyes_top(img, r=EYE_R, y=EYE_Y):
-    """Half circle eyes, round on top, flat bottom → sad / angry."""
-    _gradient_half_circle(img, _lx(), y, r, top=True)
-    _gradient_half_circle(img, _rx(), y, r, top=True)
-
-def _half_eyes_bottom(img, r=EYE_R, y=EYE_Y):
-    """Half circle eyes, round on bottom, flat top → sleepy / bored."""
-    _gradient_half_circle(img, _lx(), y, r, top=False)
-    _gradient_half_circle(img, _rx(), y, r, top=False)
-
-def _line_eyes(img, y=EYE_Y, w=None):
-    if w is None:
-        w = EYE_R
-    _draw_line(img, _lx() - w, y, _lx() + w, y)
-    _draw_line(img, _rx() - w, y, _rx() + w, y)
-
-def _smile(img, rx=MOUTH_RX, ry=MOUTH_RY, y=MOUTH_Y):
-    """Smile: round on bottom, flat top."""
-    _gradient_half_ellipse(img, CX, y, rx, ry, top=False)
-
-def _frown(img, rx=MOUTH_RX, ry=MOUTH_RY, y=MOUTH_Y):
-    """Frown: round on top, flat bottom."""
-    _gradient_half_ellipse(img, CX, y, rx, ry, top=True)
-
-def _flat_mouth(img, w=None, y=MOUTH_Y):
-    if w is None:
-        w = MOUTH_RX
-    _draw_line(img, CX - w, y, CX + w, y)
-
-def _open_mouth(img, r=None, y=MOUTH_Y):
-    if r is None:
-        r = int(MOUTH_RY * 0.8)
-    _gradient_circle(img, CX, y, r)
-
 
 # ── Face definitions ────────────────────────────────────────────────────────
 
 def _face_awake(img):
-    _round_eyes(img)
-    _flat_mouth(img)
+    _draw_eye(img, _lx(), EYE_Y)
+    _draw_eye(img, _rx(), EYE_Y)
+    _draw_flat_mouth(img, CX, MOUTH_Y)
 
 def _face_happy(img):
-    _round_eyes(img)
-    _smile(img)
+    _draw_eye(img, _lx(), EYE_Y)
+    _draw_eye(img, _rx(), EYE_Y)
+    _draw_smile(img, CX, MOUTH_Y)
 
 def _face_sad(img):
-    _half_eyes_top(img)
-    _frown(img)
+    # Half-closed from top (droopy) + frown
+    _draw_eye_half_top(img, _lx(), EYE_Y, angle=10)
+    _draw_eye_half_top(img, _rx(), EYE_Y, angle=-10)
+    _draw_frown(img, CX, MOUTH_Y)
 
 def _face_excited(img):
-    _round_eyes(img, r=int(EYE_R * 1.25))
-    _smile(img, rx=int(MOUTH_RX * 1.2), ry=int(MOUTH_RY * 1.2))
+    r = int(EYE_R * 1.25)
+    _draw_eye(img, _lx(), EYE_Y, r)
+    _draw_eye(img, _rx(), EYE_Y, r)
+    _draw_smile(img, CX, MOUTH_Y, rx=int(MOUTH_RX * 1.15), ry=int(MOUTH_RY * 1.15))
 
 def _face_bored(img):
-    _half_eyes_bottom(img)
-    _flat_mouth(img, w=int(MOUTH_RX * 0.7))
+    # Eyelids pushed down from top – half-closed
+    _draw_eye_half_bottom(img, _lx(), EYE_Y, angle=0)
+    _draw_eye_half_bottom(img, _rx(), EYE_Y, angle=0)
+    _draw_flat_mouth(img, CX, MOUTH_Y, w=int(MOUTH_RX * 0.7))
 
 def _face_angry(img):
-    _half_eyes_top(img)
-    _frown(img, rx=int(MOUTH_RX * 0.75), ry=int(MOUTH_RY * 0.75))
+    # Eyelids angled down toward centre – angry glare
+    _draw_eye_half_bottom(img, _lx(), EYE_Y, angle=-20)
+    _draw_eye_half_bottom(img, _rx(), EYE_Y, angle=20)
+    _draw_frown(img, CX, MOUTH_Y, rx=int(MOUTH_RX * 0.8), ry=int(MOUTH_RY * 0.8))
 
 def _face_cool(img):
-    # Wide flat rectangles for sunglasses
     draw = ImageDraw.Draw(img)
-    for ex in [_lx(), _rx()]:
-        rx, ry = int(EYE_R * 1.15), int(EYE_R * 0.55)
-        # gradient fill the bar
-        for i in range(max(rx, ry), 0, -1):
-            t = 1.0 - (i / max(rx, ry))
-            t = t * t
-            c = (
-                int(EDGE[0] + (CENTER[0] - EDGE[0]) * t),
-                int(EDGE[1] + (CENTER[1] - EDGE[1]) * t),
-                int(EDGE[2] + (CENTER[2] - EDGE[2]) * t),
-                255,
-            )
-            sx = int(rx * (i / max(rx, ry)))
-            sy = int(ry * (i / max(rx, ry)))
-            draw.rounded_rectangle([ex - sx, EYE_Y - sy, ex + sx, EYE_Y + sy],
-                                   radius=max(1, int(sy * 0.4)), fill=c)
+    # Large sunglasses – dark filled with cyan frame
+    lens_w = int(EYE_R * 1.35)
+    lens_h = int(EYE_R * 0.95)
+    frame = 5  # frame thickness
+    for side_cx in [_lx(), _rx()]:
+        # Cyan frame (outer)
+        draw.rounded_rectangle(
+            [side_cx - lens_w, EYE_Y - lens_h, side_cx + lens_w, EYE_Y + lens_h],
+            radius=int(lens_h * 0.45), fill=CYAN)
+        # Dark lens (inner)
+        draw.rounded_rectangle(
+            [side_cx - lens_w + frame, EYE_Y - lens_h + frame,
+             side_cx + lens_w - frame, EYE_Y + lens_h - frame],
+            radius=int(lens_h * 0.35), fill=DARK)
+        # White highlight dots on lens
+        hr = max(4, int(lens_h * 0.15))
+        _circle(draw, side_cx - int(lens_w * 0.35), EYE_Y - int(lens_h * 0.3), hr, WHITE)
+        _circle(draw, side_cx + int(lens_w * 0.15), EYE_Y + int(lens_h * 0.1), int(hr * 0.5), (200, 230, 240))
     # Bridge
-    draw.line([_lx() + EYE_R, EYE_Y, _rx() - EYE_R, EYE_Y], fill=EDGE, width=4)
-    _smile(img, rx=int(MOUTH_RX * 0.7), ry=int(MOUTH_RY * 0.7))
+    draw.line([_lx() + lens_w, EYE_Y - int(lens_h * 0.15),
+               _rx() - lens_w, EYE_Y - int(lens_h * 0.15)], fill=CYAN, width=5)
+    _draw_small_smile(img, CX, MOUTH_Y + 5)
 
 def _face_grateful(img):
-    _draw_arc_eyes(img, _lx(), EYE_Y, EYE_R)
-    _draw_arc_eyes(img, _rx(), EYE_Y, EYE_R)
-    _smile(img)
+    _draw_arc_eye(img, _lx(), EYE_Y)
+    _draw_arc_eye(img, _rx(), EYE_Y)
+    _draw_smile(img, CX, MOUTH_Y)
 
 def _face_sleep(img):
-    _line_eyes(img)
-    _flat_mouth(img, w=int(MOUTH_RX * 0.55))
+    _draw_arc_eye(img, _lx(), EYE_Y)
+    _draw_arc_eye(img, _rx(), EYE_Y)
+    _draw_flat_mouth(img, CX, MOUTH_Y, w=int(MOUTH_RX * 0.5))
 
 def _face_sleep2(img):
-    _line_eyes(img)
-    _flat_mouth(img, w=int(MOUTH_RX * 0.35))
+    _draw_arc_eye(img, _lx(), EYE_Y)
+    _draw_arc_eye(img, _rx(), EYE_Y)
+    _draw_flat_mouth(img, CX, MOUTH_Y, w=int(MOUTH_RX * 0.35))
 
 def _face_motivated(img):
-    _round_eyes(img, r=int(EYE_R * 1.15))
-    _smile(img, rx=int(MOUTH_RX * 1.05))
+    r = int(EYE_R * 1.15)
+    _draw_eye(img, _lx(), EYE_Y, r)
+    _draw_eye(img, _rx(), EYE_Y, r)
+    _draw_smile(img, CX, MOUTH_Y)
 
 def _face_demotivated(img):
-    _half_eyes_bottom(img)
-    _flat_mouth(img, w=int(MOUTH_RX * 0.65))
+    _draw_eye_half_bottom(img, _lx(), EYE_Y, angle=0)
+    _draw_eye_half_bottom(img, _rx(), EYE_Y, angle=0)
+    _draw_flat_mouth(img, CX, MOUTH_Y, w=int(MOUTH_RX * 0.6))
 
 def _face_intense(img):
-    _round_eyes(img, r=int(EYE_R * 1.25))
-    _open_mouth(img)
+    r = int(EYE_R * 1.25)
+    _draw_eye(img, _lx(), EYE_Y, r)
+    _draw_eye(img, _rx(), EYE_Y, r)
+    _draw_open_mouth(img, CX, MOUTH_Y)
 
 def _face_smart(img):
-    _round_eyes(img)
-    _smile(img, rx=int(MOUTH_RX * 0.65), ry=int(MOUTH_RY * 0.65))
+    _draw_eye(img, _lx(), EYE_Y)
+    _draw_eye(img, _rx(), EYE_Y)
+    _draw_small_smile(img, CX, MOUTH_Y)
 
 def _face_lonely(img):
-    _round_eyes(img, r=int(EYE_R * 0.8))
-    _frown(img, rx=int(MOUTH_RX * 0.6), ry=int(MOUTH_RY * 0.6))
+    r = int(EYE_R * 0.85)
+    _draw_eye(img, _lx(), EYE_Y, r)
+    _draw_eye(img, _rx(), EYE_Y, r)
+    _draw_small_frown(img, CX, MOUTH_Y)
 
 def _face_friend(img):
-    _draw_heart(img, _lx(), EYE_Y, EYE_R * 1.8)
-    _draw_heart(img, _rx(), EYE_Y, EYE_R * 1.8)
-    _smile(img)
+    _draw_heart_eye(img, _lx(), EYE_Y)
+    _draw_heart_eye(img, _rx(), EYE_Y)
+    _draw_smile(img, CX, MOUTH_Y)
 
 def _face_broken(img):
-    _draw_x(img, _lx(), EYE_Y, EYE_R * 0.75)
-    _draw_x(img, _rx(), EYE_Y, EYE_R * 0.75)
-    _flat_mouth(img, w=int(MOUTH_RX * 0.45))
+    _draw_tear_eye(img, _lx(), EYE_Y)
+    _draw_tear_eye(img, _rx(), EYE_Y)
+    _draw_frown(img, CX, MOUTH_Y, rx=int(MOUTH_RX * 0.6), ry=int(MOUTH_RY * 0.6))
 
 def _face_debug(img):
-    _draw_hash(img, _lx(), EYE_Y, EYE_R * 0.7)
-    _draw_hash(img, _rx(), EYE_Y, EYE_R * 0.7)
-    _flat_mouth(img, w=int(MOUTH_RX * 0.55))
+    _draw_hash_eye(img, _lx(), EYE_Y)
+    _draw_hash_eye(img, _rx(), EYE_Y)
+    _draw_flat_mouth(img, CX, MOUTH_Y, w=int(MOUTH_RX * 0.5))
 
 def _face_look_r(img):
-    _round_eyes(img, x_offset=8)
-    _flat_mouth(img)
+    off = 8
+    _draw_eye(img, _lx() + off, EYE_Y)
+    _draw_eye(img, _rx() + off, EYE_Y)
+    _draw_flat_mouth(img, CX, MOUTH_Y)
 
 def _face_look_l(img):
-    _round_eyes(img, x_offset=-8)
-    _flat_mouth(img)
+    off = 8
+    _draw_eye(img, _lx() - off, EYE_Y)
+    _draw_eye(img, _rx() - off, EYE_Y)
+    _draw_flat_mouth(img, CX, MOUTH_Y)
 
 def _face_look_r_happy(img):
-    _round_eyes(img, x_offset=8)
-    _smile(img)
+    off = 8
+    _draw_eye(img, _lx() + off, EYE_Y)
+    _draw_eye(img, _rx() + off, EYE_Y)
+    _draw_smile(img, CX, MOUTH_Y)
 
 def _face_look_l_happy(img):
-    _round_eyes(img, x_offset=-8)
-    _smile(img)
+    off = 8
+    _draw_eye(img, _lx() - off, EYE_Y)
+    _draw_eye(img, _rx() - off, EYE_Y)
+    _draw_smile(img, CX, MOUTH_Y)
 
 def _face_upload(img):
-    _gradient_circle(img, _lx(), EYE_Y, EYE_R)
-    _line_eyes_single(img, _rx(), EYE_Y)
-    _open_mouth(img)
+    _draw_eye(img, _lx(), EYE_Y)
+    _draw_line_eye(img, _rx(), EYE_Y)
+    _draw_open_mouth(img, CX, MOUTH_Y)
 
 def _face_upload1(img):
-    _round_eyes(img)
-    _open_mouth(img)
+    _draw_eye(img, _lx(), EYE_Y)
+    _draw_eye(img, _rx(), EYE_Y)
+    _draw_open_mouth(img, CX, MOUTH_Y)
 
 def _face_upload2(img):
-    _line_eyes_single(img, _lx(), EYE_Y)
-    _gradient_circle(img, _rx(), EYE_Y, EYE_R)
-    _open_mouth(img)
-
-def _line_eyes_single(img, cx, y, w=None):
-    """Single line eye for upload faces."""
-    if w is None:
-        w = EYE_R
-    _draw_line(img, cx - w, y, cx + w, y)
+    _draw_line_eye(img, _lx(), EYE_Y)
+    _draw_eye(img, _rx(), EYE_Y)
+    _draw_open_mouth(img, CX, MOUTH_Y)
 
 
 # ── Face registry ───────────────────────────────────────────────────────────
 
 FACES = {
     'awake':        (_face_awake,        "Open eyes, neutral"),
-    'happy':        (_face_happy,        "Round eyes, big smile"),
-    'sad':          (_face_sad,          "Droopy eyes, frown"),
+    'happy':        (_face_happy,        "Round eyes, smile"),
+    'sad':          (_face_sad,          "Droopy half-closed eyes, frown"),
     'excited':      (_face_excited,      "Big eyes, big smile"),
     'bored':        (_face_bored,        "Half-closed eyes, flat mouth"),
-    'angry':        (_face_angry,        "Narrow eyes, frown"),
-    'cool':         (_face_cool,         "Sunglasses, small smile"),
-    'grateful':     (_face_grateful,     "^^ eyes, gentle smile"),
-    'sleep':        (_face_sleep,        "Closed line eyes, flat mouth"),
-    'sleep2':       (_face_sleep2,       "Deep sleep"),
-    'motivated':    (_face_motivated,    "Wide eyes, determined smile"),
-    'demotivated':  (_face_demotivated,  "Droopy eyes, flat mouth"),
+    'angry':        (_face_angry,        "Angry angled eyes, frown"),
+    'cool':         (_face_cool,         "Dark sunglasses, small smile"),
+    'grateful':     (_face_grateful,     "Arc eyes, smile"),
+    'sleep':        (_face_sleep,        "Crescent eyes, small flat mouth"),
+    'sleep2':       (_face_sleep2,       "Crescent eyes, tiny flat mouth"),
+    'motivated':    (_face_motivated,    "Wide eyes, smile"),
+    'demotivated':  (_face_demotivated,  "Half-closed eyes, flat mouth"),
     'intense':      (_face_intense,      "Wide eyes, open mouth"),
     'smart':        (_face_smart,        "Round eyes, small smile"),
     'lonely':       (_face_lonely,       "Small eyes, small frown"),
-    'friend':       (_face_friend,       "Heart eyes, big smile"),
-    'broken':       (_face_broken,       "X eyes, flat mouth"),
+    'friend':       (_face_friend,       "Heart eyes, smile"),
+    'broken':       (_face_broken,       "Teary eyes, frown"),
     'debug':        (_face_debug,        "Hash eyes, flat mouth"),
-    'look_r':       (_face_look_r,       "Eyes looking right"),
-    'look_l':       (_face_look_l,       "Eyes looking left"),
-    'look_r_happy': (_face_look_r_happy, "Looking right, smile"),
-    'look_l_happy': (_face_look_l_happy, "Looking left, smile"),
-    'upload':       (_face_upload,       "Binary 1-0, uploading"),
-    'upload1':      (_face_upload1,      "Binary 1-1, uploading"),
-    'upload2':      (_face_upload2,      "Binary 0-1, uploading"),
+    'look_r':       (_face_look_r,       "Eyes right, neutral"),
+    'look_l':       (_face_look_l,       "Eyes left, neutral"),
+    'look_r_happy': (_face_look_r_happy, "Eyes right, smile"),
+    'look_l_happy': (_face_look_l_happy, "Eyes left, smile"),
+    'upload':       (_face_upload,       "1-0 uploading"),
+    'upload1':      (_face_upload1,      "1-1 uploading"),
+    'upload2':      (_face_upload2,      "0-1 uploading"),
 }
 
 
 # ── Generator ───────────────────────────────────────────────────────────────
 
 def create_face(name, draw_fn, size=SIZE):
-    """Render a face on a transparent canvas with soft edges."""
     img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw_fn(img)
-    img = _soft_blur(img, radius=1.5, passes=1)
+    img = _soft_edge(img)
     return img
 
 
 def generate_all_faces(output_dir='.'):
-    """Generate all face images."""
     os.makedirs(output_dir, exist_ok=True)
-
     print(f"Generating face images in {output_dir}/...")
-
     for name, (draw_fn, desc) in FACES.items():
         img = create_face(name, draw_fn)
         output_path = os.path.join(output_dir, f'{name}.png')
         img.save(output_path)
         print(f"  ✓ Created {name}.png – {desc}")
-
     print(f"\nGenerated {len(FACES)} face images!")
     print(f"Images are {SIZE}×{SIZE} PNG with transparent backgrounds.")
 
